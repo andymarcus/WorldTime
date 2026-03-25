@@ -1,0 +1,1629 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>World Time</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            :root {
+                --bg: oklch(97.2% 0.007 75);
+                --surface: oklch(93.5% 0.01 72);
+                --border: oklch(87% 0.013 72);
+                --text: oklch(19% 0.014 245);
+                --muted: oklch(55% 0.008 245);
+                --accent: oklch(66% 0.19 52);
+                --accent-dim: oklch(91% 0.05 52);
+                --lw: 210px; /* label column width */
+            }
+
+            body {
+                font-family: "Outfit", sans-serif;
+                background: var(--bg);
+                color: var(--text);
+                min-height: 100vh;
+            }
+
+            /* ─── Header ─── */
+            .app-header {
+                padding: 2rem 2.5rem 1.25rem;
+                display: flex;
+                align-items: flex-end;
+                justify-content: space-between;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .app-title {
+                font-family: "Cormorant", serif;
+                font-size: clamp(2.4rem, 5vw, 3.8rem);
+                font-weight: 300;
+                letter-spacing: -0.025em;
+                line-height: 1;
+            }
+            .app-title em {
+                font-style: italic;
+            }
+
+            .app-date {
+                font-size: 0.7rem;
+                font-weight: 400;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--muted);
+                padding-bottom: 0.2rem;
+            }
+
+            /* ─── Gantt wrap ─── */
+            .gantt-wrap {
+                padding: 0 2.5rem 4rem;
+            }
+
+            /* ─── Sticky hour header ─── */
+            .hour-header {
+                position: sticky;
+                top: 0;
+                z-index: 20;
+                background: var(--bg);
+                display: grid;
+                grid-template-columns: var(--lw) 1fr;
+                padding: 1rem 0 0.5rem;
+                border-bottom: 1px solid var(--border);
+                margin-bottom: 0;
+            }
+
+            .hour-ticks {
+                position: relative;
+                height: 18px;
+            }
+
+            .h-tick {
+                position: absolute;
+                font-size: 0.63rem;
+                font-weight: 500;
+                letter-spacing: 0.04em;
+                color: var(--muted);
+                transform: translateX(-50%);
+                top: 0;
+                line-height: 1;
+                user-select: none;
+            }
+            .h-tick::after {
+                content: "";
+                display: block;
+                width: 1px;
+                height: 5px;
+                background: var(--border);
+                margin: 3px auto 0;
+            }
+
+            /* ─── Zone rows ─── */
+            .zone-rows {
+                position: relative;
+            }
+
+            .zone-row {
+                display: grid;
+                grid-template-columns: var(--lw) 1fr;
+                align-items: center;
+                border-bottom: 1px solid var(--border);
+                padding: 0.65rem 0;
+                animation: rowIn 0.25s ease-out;
+            }
+
+            @keyframes rowIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-6px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            /* ─── Label ─── */
+            .zone-label {
+                padding-right: 1.5rem;
+            }
+
+            .zone-label-top {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                margin-bottom: 0.05rem;
+            }
+
+            .zone-city {
+                font-size: 0.78rem;
+                font-weight: 500;
+                letter-spacing: 0.01em;
+            }
+
+            .local-badge {
+                font-size: 0.56rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--accent);
+                background: var(--accent-dim);
+                padding: 0.1rem 0.4rem;
+                border-radius: 2px;
+                flex-shrink: 0;
+            }
+
+            .zone-home {
+                font-size: 0.7rem;
+                cursor: pointer;
+                background: none;
+                border: none;
+                padding: 0;
+                line-height: 1;
+                opacity: 0;
+                transition: opacity 0.15s;
+                flex-shrink: 0;
+            }
+            .zone-row:hover .zone-home {
+                opacity: 0.6;
+            }
+            .zone-home:hover {
+                opacity: 1 !important;
+            }
+
+            .zone-clock {
+                font-size: 1.55rem;
+                font-weight: 500;
+                letter-spacing: -0.03em;
+                font-variant-numeric: tabular-nums;
+                line-height: 1.1;
+            }
+
+            .zone-sub {
+                font-size: 0.66rem;
+                color: var(--muted);
+                margin-top: 0.1rem;
+            }
+
+            /* ─── Bar ─── */
+            .zone-bar-wrap {
+                position: relative;
+            }
+
+            .zone-bar {
+                height: 48px;
+                border-radius: 5px;
+                overflow: hidden;
+                position: relative;
+                cursor: crosshair;
+            }
+
+            .zone-bar-bg {
+                position: absolute;
+                inset: 0;
+            }
+
+            /* Hour grid lines on bars — set dynamically via --rh custom property */
+            .zone-bar::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background-image: repeating-linear-gradient(
+                    to right,
+                    transparent 0,
+                    transparent calc(100% / var(--rh) - 1px),
+                    oklch(0% 0 0 / 0.07) calc(100% / var(--rh) - 1px),
+                    oklch(0% 0 0 / 0.07) calc(100% / var(--rh))
+                );
+                z-index: 1;
+                pointer-events: none;
+            }
+
+            /* Now indicator */
+            .now-indicator {
+                position: absolute;
+                top: -4px;
+                bottom: -4px;
+                width: 2px;
+                background: var(--accent);
+                z-index: 4;
+                pointer-events: none;
+                transition: left 1s linear;
+            }
+
+            /* Hover crosshair line */
+            .hover-line {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                width: 2px;
+                background: var(--accent);
+                pointer-events: none;
+                z-index: 10;
+                display: none;
+            }
+
+            /* Shared hover tooltip */
+            .hover-tooltip {
+                position: absolute;
+                bottom: calc(100% + 10px);
+                padding: 0.45rem 0.7rem;
+                background: var(--text);
+                color: var(--bg);
+                font-size: 0.66rem;
+                font-weight: 400;
+                letter-spacing: 0.02em;
+                border-radius: 5px;
+                white-space: nowrap;
+                pointer-events: none;
+                opacity: 0;
+                transform: translateX(-50%);
+                transition: opacity 0.1s;
+                z-index: 30;
+                line-height: 1.55;
+            }
+            .hover-tooltip::after {
+                content: "";
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                transform: translateX(-50%);
+                border: 5px solid transparent;
+                border-top-color: var(--text);
+            }
+            .hover-tooltip .tt-row {
+                display: flex;
+                justify-content: space-between;
+                gap: 1.2rem;
+            }
+            .hover-tooltip .tt-label {
+                font-weight: 500;
+            }
+            .hover-tooltip .tt-time {
+                text-align: right;
+                opacity: 0.82;
+            }
+
+            /* Remove button */
+            .zone-remove {
+                position: absolute;
+                top: 50%;
+                right: 6px;
+                transform: translateY(-50%);
+                width: 20px;
+                height: 20px;
+                background: oklch(0% 0 0 / 0.45);
+                border: none;
+                border-radius: 50%;
+                color: oklch(95% 0 0);
+                font-size: 0.95rem;
+                line-height: 1;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                transition:
+                    opacity 0.15s,
+                    background 0.15s;
+                z-index: 5;
+            }
+            .zone-row:hover .zone-remove {
+                opacity: 1;
+            }
+            .zone-remove:hover {
+                background: oklch(45% 0.18 20 / 0.9);
+            }
+
+            /* ─── Legend ─── */
+            .legend {
+                display: flex;
+                align-items: center;
+                gap: 1.2rem;
+                margin-top: 1rem;
+                padding-left: var(--lw);
+                flex-wrap: wrap;
+            }
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                font-size: 0.65rem;
+                font-weight: 400;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.07em;
+            }
+            .legend-swatch {
+                width: 20px;
+                height: 8px;
+                border-radius: 2px;
+                flex-shrink: 0;
+            }
+
+            /* ─── Add section ─── */
+            .add-section {
+                margin-top: 1.75rem;
+                padding-left: var(--lw);
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                flex-wrap: wrap;
+            }
+
+            .add-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-family: "Outfit", sans-serif;
+                font-size: 0.8rem;
+                font-weight: 500;
+                color: var(--muted);
+                background: none;
+                border: 1.5px dashed var(--border);
+                padding: 0.5rem 1rem;
+                border-radius: 6px;
+                cursor: pointer;
+                transition:
+                    color 0.2s,
+                    border-color 0.2s;
+            }
+            .add-btn:hover {
+                color: var(--text);
+                border-color: var(--accent);
+            }
+
+            .add-panel {
+                display: none;
+                align-items: center;
+                gap: 0.65rem;
+                flex-wrap: wrap;
+            }
+            .add-panel.open {
+                display: flex;
+            }
+
+            .tz-combo {
+                position: relative;
+                min-width: 300px;
+            }
+            .tz-combo-input {
+                font-family: "Outfit", sans-serif;
+                font-size: 0.8rem;
+                padding: 0.45rem 0.75rem;
+                border: 1.5px solid var(--border);
+                background: var(--bg);
+                color: var(--text);
+                border-radius: 6px;
+                outline: none;
+                width: 100%;
+            }
+            .tz-combo-input:focus {
+                border-color: var(--accent);
+            }
+            .tz-combo-list {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                max-height: 260px;
+                overflow-y: auto;
+                background: var(--bg);
+                border: 1.5px solid var(--border);
+                border-top: none;
+                border-radius: 0 0 6px 6px;
+                z-index: 50;
+                display: none;
+            }
+            .tz-combo-list.open {
+                display: block;
+            }
+            .tz-combo-group {
+                font-size: 0.65rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: var(--muted);
+                padding: 0.45rem 0.75rem 0.2rem;
+                pointer-events: none;
+            }
+            .tz-combo-item {
+                font-size: 0.78rem;
+                padding: 0.35rem 0.75rem;
+                cursor: pointer;
+                color: var(--text);
+            }
+            .tz-combo-item:hover,
+            .tz-combo-item.active {
+                background: var(--accent-dim);
+            }
+            .tz-combo-empty {
+                font-size: 0.75rem;
+                padding: 0.6rem 0.75rem;
+                color: var(--muted);
+                font-style: italic;
+            }
+
+            .btn-confirm {
+                font-family: "Outfit", sans-serif;
+                font-size: 0.8rem;
+                font-weight: 500;
+                padding: 0.45rem 1.1rem;
+                background: var(--accent);
+                color: oklch(98% 0.008 75);
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: opacity 0.15s;
+            }
+            .btn-confirm:hover {
+                opacity: 0.85;
+            }
+
+            .btn-cancel {
+                font-family: "Outfit", sans-serif;
+                font-size: 0.8rem;
+                color: var(--muted);
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 0.45rem 0.5rem;
+            }
+            .btn-cancel:hover {
+                color: var(--text);
+            }
+
+            /* ─── Filter bar ─── */
+            .filter-bar {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                padding-left: var(--lw);
+                margin-top: 1rem;
+                flex-wrap: wrap;
+            }
+            .filter-label {
+                font-size: 0.7rem;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--muted);
+            }
+            .filter-select {
+                font-family: "Outfit", sans-serif;
+                font-size: 0.78rem;
+                padding: 0.3rem 0.55rem;
+                border: 1.5px solid var(--border);
+                background: var(--bg);
+                color: var(--text);
+                border-radius: 5px;
+                outline: none;
+                cursor: pointer;
+            }
+            .filter-select:focus {
+                border-color: var(--accent);
+            }
+            .filter-reset {
+                font-family: "Outfit", sans-serif;
+                font-size: 0.7rem;
+                color: var(--muted);
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 0.3rem 0.4rem;
+                text-decoration: underline;
+                text-underline-offset: 2px;
+            }
+            .filter-reset:hover {
+                color: var(--text);
+            }
+
+            /* ─── Selection overlay ─── */
+            .selection-overlay {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                background: oklch(66% 0.19 52 / 0.18);
+                border-left: 2px solid var(--accent);
+                border-right: 2px solid var(--accent);
+                pointer-events: none;
+                z-index: 8;
+                display: none;
+            }
+
+            /* ─── Calendar popup ─── */
+            .cal-popup {
+                position: absolute;
+                bottom: calc(100% + 10px);
+                transform: translateX(-50%);
+                background: var(--text);
+                color: var(--bg);
+                border-radius: 6px;
+                padding: 0.55rem 0.75rem;
+                font-size: 0.68rem;
+                white-space: nowrap;
+                pointer-events: auto;
+                z-index: 35;
+                display: none;
+                line-height: 1.55;
+            }
+            .cal-popup::after {
+                content: "";
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                transform: translateX(-50%);
+                border: 5px solid transparent;
+                border-top-color: var(--text);
+            }
+            .cal-popup .cal-range {
+                font-weight: 500;
+                margin-bottom: 0.3rem;
+            }
+            .cal-popup .cal-zone-list {
+                display: flex;
+                flex-direction: column;
+                gap: 0.1rem;
+                margin-bottom: 0.45rem;
+            }
+            .cal-popup .cal-zone-row {
+                display: flex;
+                justify-content: space-between;
+                gap: 1.2rem;
+            }
+            .cal-popup .cal-zone-name {
+                font-weight: 500;
+            }
+            .cal-popup .cal-zone-time {
+                opacity: 0.82;
+            }
+            .cal-gcal-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                font-family: "Outfit", sans-serif;
+                font-size: 0.72rem;
+                font-weight: 500;
+                padding: 0.35rem 0.75rem;
+                background: var(--accent);
+                color: oklch(98% 0.008 75);
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                transition: opacity 0.15s;
+                text-decoration: none;
+            }
+            .cal-gcal-btn:hover {
+                opacity: 0.85;
+            }
+            .cal-dismiss {
+                font-family: "Outfit", sans-serif;
+                font-size: 0.68rem;
+                color: oklch(70% 0 0);
+                background: none;
+                border: none;
+                cursor: pointer;
+                margin-left: 0.5rem;
+                padding: 0.35rem 0.3rem;
+            }
+            .cal-dismiss:hover {
+                color: var(--bg);
+            }
+
+        </style>
+    </head>
+    <body>
+        <header class="app-header">
+            <h1 class="app-title">World <em>Time</em></h1>
+            <span class="app-date" id="dateStr"></span>
+        </header>
+
+        <div class="gantt-wrap">
+            <div class="hour-header">
+                <div></div>
+                <div class="hour-ticks" id="hourTicks"></div>
+            </div>
+
+            <div class="filter-bar">
+                <span class="filter-label">From</span>
+                <select class="filter-select" id="filterStart"></select>
+                <span class="filter-label">To</span>
+                <select class="filter-select" id="filterEnd"></select>
+                <button
+                    class="filter-reset"
+                    id="filterReset"
+                    onclick="resetFilter()"
+                >
+                    Reset
+                </button>
+            </div>
+
+            <div class="zone-rows" id="zoneRows"></div>
+
+            <div class="legend" id="legend"></div>
+
+            <div class="add-section">
+                <button class="add-btn" id="addBtn" onclick="showAdd()">
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                        <line
+                            x1="5.5"
+                            y1="1"
+                            x2="5.5"
+                            y2="10"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                        />
+                        <line
+                            x1="1"
+                            y1="5.5"
+                            x2="10"
+                            y2="5.5"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                        />
+                    </svg>
+                    Add timezone
+                </button>
+
+                <div class="add-panel" id="addPanel">
+                    <div class="tz-combo" id="tzCombo">
+                        <input class="tz-combo-input" id="tzInput" type="text" placeholder="Search timezone..." autocomplete="off" />
+                        <div class="tz-combo-list" id="tzList"></div>
+                    </div>
+                    <button class="btn-confirm" onclick="confirmAdd()">
+                        Add
+                    </button>
+                    <button class="btn-cancel" onclick="hideAdd()">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            (() => {
+                // ── Timezone list ────────────────────────────────────────────────────────
+                const TZ_LIST = [
+                    { label: "Honolulu", zone: "Pacific/Honolulu" },
+                    { label: "Anchorage", zone: "America/Anchorage" },
+                    { label: "Vancouver", zone: "America/Vancouver" },
+                    { label: "Los Angeles", zone: "America/Los_Angeles" },
+                    { label: "Denver", zone: "America/Denver" },
+                    { label: "Chicago", zone: "America/Chicago" },
+                    { label: "Mexico City", zone: "America/Mexico_City" },
+                    { label: "New York", zone: "America/New_York" },
+                    { label: "Toronto", zone: "America/Toronto" },
+                    { label: "Halifax", zone: "America/Halifax" },
+                    { label: "São Paulo", zone: "America/Sao_Paulo" },
+                    {
+                        label: "Buenos Aires",
+                        zone: "America/Argentina/Buenos_Aires",
+                    },
+                    { label: "Reykjavik", zone: "Atlantic/Reykjavik" },
+                    { label: "London", zone: "Europe/London" },
+                    { label: "Lisbon", zone: "Europe/Lisbon" },
+                    { label: "Paris", zone: "Europe/Paris" },
+                    { label: "Berlin", zone: "Europe/Berlin" },
+                    { label: "Amsterdam", zone: "Europe/Amsterdam" },
+                    { label: "Madrid", zone: "Europe/Madrid" },
+                    { label: "Rome", zone: "Europe/Rome" },
+                    { label: "Stockholm", zone: "Europe/Stockholm" },
+                    { label: "Warsaw", zone: "Europe/Warsaw" },
+                    { label: "Helsinki", zone: "Europe/Helsinki" },
+                    { label: "Athens", zone: "Europe/Athens" },
+                    { label: "Istanbul", zone: "Europe/Istanbul" },
+                    { label: "Moscow", zone: "Europe/Moscow" },
+                    { label: "Nairobi", zone: "Africa/Nairobi" },
+                    { label: "Riyadh", zone: "Asia/Riyadh" },
+                    { label: "Dubai", zone: "Asia/Dubai" },
+                    { label: "Karachi", zone: "Asia/Karachi" },
+                    { label: "Mumbai", zone: "Asia/Kolkata" },
+                    { label: "Colombo", zone: "Asia/Colombo" },
+                    { label: "Dhaka", zone: "Asia/Dhaka" },
+                    { label: "Bangkok", zone: "Asia/Bangkok" },
+                    { label: "Jakarta", zone: "Asia/Jakarta" },
+                    { label: "Singapore", zone: "Asia/Singapore" },
+                    { label: "Kuala Lumpur", zone: "Asia/Kuala_Lumpur" },
+                    { label: "Hong Kong", zone: "Asia/Hong_Kong" },
+                    { label: "Shanghai", zone: "Asia/Shanghai" },
+                    { label: "Taipei", zone: "Asia/Taipei" },
+                    { label: "Tokyo", zone: "Asia/Tokyo" },
+                    { label: "Seoul", zone: "Asia/Seoul" },
+                    { label: "Perth", zone: "Australia/Perth" },
+                    { label: "Adelaide", zone: "Australia/Adelaide" },
+                    { label: "Melbourne", zone: "Australia/Melbourne" },
+                    { label: "Sydney", zone: "Australia/Sydney" },
+                    { label: "Auckland", zone: "Pacific/Auckland" },
+                ];
+
+                // ── Color palette for time-of-day ────────────────────────────────────────
+                // Each entry: [localHourStart, localHourEnd, hex color, label]
+                const TIME_BANDS = [
+                    [0, 6, "#2B2D42", "Night"],
+                    [6, 9, "#FFD166", "Morning"],
+                    [9, 17, "#4D96FF", "Work Hours"],
+                    [17, 21, "#F4A261", "Evening"],
+                    [21, 24, "#2B2D42", "Night"],
+                ];
+
+                function bandFor(h) {
+                    const h24 = ((h % 24) + 24) % 24;
+                    for (const [start, end, color] of TIME_BANDS) {
+                        if (h24 >= start && h24 < end) return color;
+                    }
+                    return "#0b1528";
+                }
+
+                // ── State ────────────────────────────────────────────────────────────────
+                const LOCAL_ZONE =
+                    Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+                function guessLabel(zone) {
+                    const m = TZ_LIST.find((z) => z.zone === zone);
+                    if (m) return m.label;
+                    return zone.split("/").pop().replace(/_/g, " ");
+                }
+
+                const STORAGE_KEY = "worldtime-zones";
+                let localZone = LOCAL_ZONE; // can be overridden by user
+
+                function loadZones() {
+                    try {
+                        const saved = JSON.parse(
+                            localStorage.getItem(STORAGE_KEY),
+                        );
+                        if (Array.isArray(saved) && saved.length) {
+                            const hasLocal = saved.find((z) => z.isLocal);
+                            if (hasLocal) localZone = hasLocal.zone;
+                            // Build full list: local zone first, then the rest
+                            const allZones = saved.map((z) => ({
+                                label: guessLabel(z.zone),
+                                zone: z.zone,
+                                isLocal: z.zone === localZone,
+                            }));
+                            // Ensure localZone is present
+                            if (!allZones.find((z) => z.zone === localZone)) {
+                                allZones.unshift({
+                                    label: guessLabel(localZone),
+                                    zone: localZone,
+                                    isLocal: true,
+                                });
+                            }
+                            allZones.sort((a, b) =>
+                                a.isLocal ? -1 : b.isLocal ? 1 : 0,
+                            );
+                            return allZones;
+                        }
+                    } catch {}
+                    return [
+                        {
+                            label: guessLabel(LOCAL_ZONE),
+                            zone: LOCAL_ZONE,
+                            isLocal: true,
+                        },
+                    ];
+                }
+
+                function saveZones() {
+                    const toSave = zones.map((z) => ({
+                        zone: z.zone,
+                        isLocal: z.isLocal,
+                    }));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+                }
+
+                let zones = loadZones();
+                let addOpen = false;
+                let filterStart = 0; // local hour 0–23
+                let filterEnd = 24; // local hour 1–24
+
+                // ── Helpers ──────────────────────────────────────────────────────────────
+                function rangeHours() {
+                    return filterEnd - filterStart;
+                }
+
+                // Build a Date for a given decimal hour in the chosen local zone today
+                function localHourToDate(localH) {
+                    const now = new Date();
+                    // Get current hour in the chosen local zone
+                    const curParts = new Intl.DateTimeFormat("en-US", {
+                        hour: "numeric",
+                        minute: "numeric",
+                        second: "numeric",
+                        hour12: false,
+                        timeZone: localZone,
+                    }).format(now);
+                    const [ch, cm, cs] = curParts.split(":").map(Number);
+                    const curDecH = (ch % 24) + cm / 60 + cs / 3600;
+                    // Offset from current time to desired localH
+                    const diffMs = (localH - curDecH) * 3600000;
+                    return new Date(now.getTime() + diffMs);
+                }
+
+                // What hour is it in `zone` at local hour `localH`?
+                function getZoneHourAtLocal(localH, zone) {
+                    const d = localHourToDate(localH);
+                    const s = new Intl.DateTimeFormat("en-US", {
+                        hour: "numeric",
+                        hour12: false,
+                        timeZone: zone,
+                    }).format(d);
+                    return parseInt(s) % 24;
+                }
+
+                function fmtHourAmPm(h) {
+                    h = ((h % 24) + 24) % 24;
+                    if (h === 0) return "12 AM";
+                    if (h < 12) return `${h} AM`;
+                    if (h === 12) return "12 PM";
+                    return `${h - 12} PM`;
+                }
+
+                function nowPct() {
+                    const n = new Date();
+                    const parts = new Intl.DateTimeFormat("en-US", {
+                        hour: "numeric",
+                        minute: "numeric",
+                        second: "numeric",
+                        hour12: false,
+                        timeZone: localZone,
+                    }).format(n);
+                    const [h, m, s] = parts.split(":").map(Number);
+                    const localH = (h % 24) + m / 60 + s / 3600;
+                    if (localH < filterStart || localH > filterEnd) return null;
+                    return ((localH - filterStart) / rangeHours()) * 100;
+                }
+
+                function fmtTime(zone) {
+                    return new Intl.DateTimeFormat("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                        timeZone: zone,
+                    }).format(new Date());
+                }
+
+                function fmtOffset(zone) {
+                    const parts = new Intl.DateTimeFormat("en-US", {
+                        timeZoneName: "shortOffset",
+                        timeZone: zone,
+                    }).formatToParts(new Date());
+                    return (
+                        parts.find((p) => p.type === "timeZoneName")?.value ??
+                        ""
+                    );
+                }
+
+                function fmtDay(zone) {
+                    return new Intl.DateTimeFormat("en-US", {
+                        weekday: "short",
+                        timeZone: zone,
+                    }).format(new Date());
+                }
+
+                // Compute time at a given bar fraction (0–1 within visible range) in a zone
+                function fmtTimeAtFrac(frac, zone) {
+                    const localH = filterStart + frac * rangeHours();
+                    const d = localHourToDate(localH);
+                    return new Intl.DateTimeFormat("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                        timeZone: zone,
+                    }).format(d);
+                }
+
+                // ── Gradient ─────────────────────────────────────────────────────────────
+                function makeGradient(zone) {
+                    const rh = rangeHours();
+
+                    // Group consecutive hours into band segments
+                    const segments = [];
+                    for (let h = filterStart; h < filterEnd; h++) {
+                        const zoneH = getZoneHourAtLocal(h, zone);
+                        const color = bandFor(zoneH);
+                        const last = segments[segments.length - 1];
+                        if (last && last.color === color) {
+                            last.endH = h + 1;
+                        } else {
+                            segments.push({ color, startH: h, endH: h + 1 });
+                        }
+                    }
+
+                    const pct = (h) =>
+                        (((h - filterStart) / rh) * 100).toFixed(3) + "%";
+                    const stops = [];
+
+                    // First edge
+                    stops.push(`${segments[0].color} 0%`);
+
+                    for (const seg of segments) {
+                        const dur = seg.endH - seg.startH;
+                        // Solid at 30% and 70% into each band; CSS blends between bands
+                        stops.push(`${seg.color} ${pct(seg.startH + dur * 0.3)}`);
+                        stops.push(`${seg.color} ${pct(seg.startH + dur * 0.7)}`);
+                    }
+
+                    // Last edge
+                    stops.push(
+                        `${segments[segments.length - 1].color} 100%`,
+                    );
+
+                    return `linear-gradient(to right, ${stops.join(", ")})`;
+                }
+
+                // ── Build hour header ─────────────────────────────────────────────────────
+                function buildTicks() {
+                    const el = document.getElementById("hourTicks");
+                    el.innerHTML = "";
+                    const rh = rangeHours();
+                    const step = rh <= 6 ? 1 : rh <= 12 ? 2 : 3;
+                    for (let h = filterStart; h <= filterEnd; h += step) {
+                        const tick = document.createElement("span");
+                        tick.className = "h-tick";
+                        tick.style.left = `${(((h - filterStart) / rh) * 100).toFixed(2)}%`;
+                        tick.textContent =
+                            h === filterEnd && h === 24 ? "" : fmtHourAmPm(h);
+                        el.appendChild(tick);
+                    }
+                }
+
+                // ── Build legend ──────────────────────────────────────────────────────────
+                function buildLegend() {
+                    const el = document.getElementById("legend");
+                    el.innerHTML = "";
+                    const seen = new Set();
+                    for (const [, , color, label] of TIME_BANDS) {
+                        if (seen.has(label)) continue;
+                        seen.add(label);
+                        const item = document.createElement("div");
+                        item.className = "legend-item";
+                        item.innerHTML = `<span class="legend-swatch" style="background:${color}"></span>${label}`;
+                        el.appendChild(item);
+                    }
+                }
+
+                // ── Build row ─────────────────────────────────────────────────────────────
+                function buildRow(tz) {
+                    const row = document.createElement("div");
+                    row.className = "zone-row";
+                    row.dataset.zone = tz.zone;
+
+                    // ─ Label column
+                    const lbl = document.createElement("div");
+                    lbl.className = "zone-label";
+
+                    const top = document.createElement("div");
+                    top.className = "zone-label-top";
+
+                    const city = document.createElement("span");
+                    city.className = "zone-city";
+                    city.textContent = tz.label;
+                    top.appendChild(city);
+
+                    if (tz.isLocal) {
+                        const badge = document.createElement("span");
+                        badge.className = "local-badge";
+                        badge.textContent = "local";
+                        top.appendChild(badge);
+                    } else {
+                        const homeBtn = document.createElement("button");
+                        homeBtn.className = "zone-home";
+                        homeBtn.textContent = "\u{1F3E0}";
+                        homeBtn.title = `Set ${tz.label} as local`;
+                        homeBtn.onclick = () => setLocalZone(tz.zone);
+                        top.appendChild(homeBtn);
+                    }
+
+                    const clock = document.createElement("div");
+                    clock.className = "zone-clock";
+                    clock.dataset.clockZone = tz.zone;
+                    clock.textContent = fmtTime(tz.zone);
+
+                    const sub = document.createElement("div");
+                    sub.className = "zone-sub";
+                    sub.dataset.subZone = tz.zone;
+                    sub.textContent = `${fmtDay(tz.zone)} · ${fmtOffset(tz.zone)}`;
+
+                    lbl.appendChild(top);
+                    lbl.appendChild(clock);
+                    lbl.appendChild(sub);
+
+                    // ─ Bar column
+                    const barWrap = document.createElement("div");
+                    barWrap.className = "zone-bar-wrap";
+
+                    const bar = document.createElement("div");
+                    bar.className = "zone-bar";
+
+                    const bg = document.createElement("div");
+                    bg.className = "zone-bar-bg";
+                    bg.style.background = makeGradient(tz.zone);
+
+                    const indicator = document.createElement("div");
+                    indicator.className = "now-indicator";
+                    indicator.dataset.nowInd = tz.zone;
+                    const np = nowPct();
+                    if (np !== null) {
+                        indicator.style.left = `${np}%`;
+                    } else {
+                        indicator.style.display = "none";
+                    }
+
+                    bar.appendChild(bg);
+                    bar.appendChild(indicator);
+
+                    barWrap.appendChild(bar);
+
+                    // Remove button
+                    if (!tz.isLocal) {
+                        const rmBtn = document.createElement("button");
+                        rmBtn.className = "zone-remove";
+                        rmBtn.innerHTML = "&#215;";
+                        rmBtn.title = `Remove ${tz.label}`;
+                        rmBtn.onclick = () => removeZone(tz.zone);
+                        bar.appendChild(rmBtn);
+                    }
+
+                    row.appendChild(lbl);
+                    row.appendChild(barWrap);
+
+                    return row;
+                }
+
+                // ── Render all rows ───────────────────────────────────────────────────────
+                function render() {
+                    document.documentElement.style.setProperty(
+                        "--rh",
+                        rangeHours(),
+                    );
+                    const container = document.getElementById("zoneRows");
+                    container.innerHTML = "";
+                    zones.forEach((tz) => container.appendChild(buildRow(tz)));
+
+                    // Shared hover elements
+                    const hoverLine = document.createElement("div");
+                    hoverLine.className = "hover-line";
+                    container.appendChild(hoverLine);
+
+                    const hoverTip = document.createElement("div");
+                    hoverTip.className = "hover-tooltip";
+                    container.appendChild(hoverTip);
+
+                    // Selection elements
+                    const selOverlay = document.createElement("div");
+                    selOverlay.className = "selection-overlay";
+                    container.appendChild(selOverlay);
+
+                    const calPopup = document.createElement("div");
+                    calPopup.className = "cal-popup";
+                    container.appendChild(calPopup);
+
+                    let dragging = false;
+                    let dragStartFrac = null;
+                    let selActive = false; // selection is locked in
+
+                    function barFrac(e) {
+                        const firstBar =
+                            container.querySelector(".zone-bar");
+                        if (!firstBar) return null;
+                        const barRect = firstBar.getBoundingClientRect();
+                        return Math.max(
+                            0,
+                            Math.min(
+                                1,
+                                (e.clientX - barRect.left) / barRect.width,
+                            ),
+                        );
+                    }
+
+                    function barLeftPx(frac) {
+                        const firstBar =
+                            container.querySelector(".zone-bar");
+                        if (!firstBar) return 0;
+                        const barRect = firstBar.getBoundingClientRect();
+                        const containerRect =
+                            container.getBoundingClientRect();
+                        return (
+                            barRect.left -
+                            containerRect.left +
+                            frac * barRect.width
+                        );
+                    }
+
+                    function showHover(e) {
+                        const frac = barFrac(e);
+                        if (frac === null) return;
+                        const left = barLeftPx(frac);
+                        hoverLine.style.left = `${left}px`;
+                        hoverLine.style.display = "block";
+
+                        const rows = zones
+                            .map(
+                                (tz) =>
+                                    `<div class="tt-row"><span class="tt-label">${tz.label}</span><span class="tt-time">${fmtTimeAtFrac(frac, tz.zone)}</span></div>`,
+                            )
+                            .join("");
+                        hoverTip.innerHTML = rows;
+                        hoverTip.style.left = `${left}px`;
+                        hoverTip.style.opacity = "1";
+                    }
+
+                    function hideHover() {
+                        hoverLine.style.display = "none";
+                        hoverTip.style.opacity = "0";
+                    }
+
+                    function showSelection(f1, f2) {
+                        const left = barLeftPx(Math.min(f1, f2));
+                        const right = barLeftPx(Math.max(f1, f2));
+                        selOverlay.style.left = `${left}px`;
+                        selOverlay.style.width = `${right - left}px`;
+                        selOverlay.style.display = "block";
+                    }
+
+                    function fmtShortTime(frac, zone) {
+                        const localH =
+                            filterStart + frac * rangeHours();
+                        const d = localHourToDate(localH);
+                        return new Intl.DateTimeFormat("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                            timeZone: zone,
+                        }).format(d);
+                    }
+
+                    function buildGcalUrl(startFrac, endFrac) {
+                        const sLocalH =
+                            filterStart + startFrac * rangeHours();
+                        const eLocalH =
+                            filterStart + endFrac * rangeHours();
+                        const startDate = localHourToDate(sLocalH);
+                        const endDate = localHourToDate(eLocalH);
+                        const fmt = (d) =>
+                            d
+                                .toISOString()
+                                .replace(/[-:]/g, "")
+                                .replace(/\.\d+Z$/, "Z");
+                        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Meeting&dates=${fmt(startDate)}/${fmt(endDate)}`;
+                    }
+
+                    function showCalPopup(f1, f2) {
+                        const startF = Math.min(f1, f2);
+                        const endF = Math.max(f1, f2);
+                        const mid = (startF + endF) / 2;
+                        const left = barLeftPx(mid);
+
+                        const zoneRows = zones
+                            .map(
+                                (tz) =>
+                                    `<div class="cal-zone-row"><span class="cal-zone-name">${tz.label}</span><span class="cal-zone-time">${fmtShortTime(startF, tz.zone)} – ${fmtShortTime(endF, tz.zone)}</span></div>`,
+                            )
+                            .join("");
+
+                        const url = buildGcalUrl(startF, endF);
+
+                        calPopup.innerHTML = `
+                            <div class="cal-zone-list">${zoneRows}</div>
+                            <div>
+                                <a class="cal-gcal-btn" href="${url}" target="_blank" rel="noopener">Add to Google Calendar</a>
+                                <button class="cal-dismiss" onclick="this.closest('.cal-popup').dataset.dismiss='1'">Dismiss</button>
+                            </div>`;
+                        calPopup.style.left = `${left}px`;
+                        calPopup.style.display = "block";
+
+                        calPopup.querySelector(".cal-dismiss").onclick =
+                            () => clearSelection();
+                    }
+
+                    function clearSelection() {
+                        selActive = false;
+                        dragStartFrac = null;
+                        selOverlay.style.display = "none";
+                        calPopup.style.display = "none";
+                    }
+
+                    // Mouse events
+                    container.addEventListener("mousedown", (e) => {
+                        if (
+                            e.target.closest(".zone-remove") ||
+                            e.target.closest(".cal-popup")
+                        )
+                            return;
+                        if (!e.target.closest(".zone-bar")) return;
+
+                        // Clear any existing selection
+                        clearSelection();
+
+                        const frac = barFrac(e);
+                        if (frac === null) return;
+                        dragging = true;
+                        dragStartFrac = frac;
+                        e.preventDefault();
+                    });
+
+                    document.addEventListener("mousemove", (e) => {
+                        if (dragging) {
+                            const frac = barFrac(e);
+                            if (frac === null) return;
+                            showSelection(dragStartFrac, frac);
+                            hideHover();
+                        }
+                    });
+
+                    document.addEventListener("mouseup", (e) => {
+                        if (!dragging) return;
+                        dragging = false;
+                        const frac = barFrac(e);
+                        if (frac === null) return;
+
+                        let startF = dragStartFrac;
+                        let endF = frac;
+
+                        // If click (no drag), default to 1-hour slot
+                        if (Math.abs(endF - startF) < 0.005) {
+                            const rh = rangeHours();
+                            const oneHourFrac = 1 / rh;
+                            startF = Math.max(
+                                0,
+                                frac - oneHourFrac / 2,
+                            );
+                            endF = Math.min(1, frac + oneHourFrac / 2);
+                        }
+
+                        if (startF > endF)
+                            [startF, endF] = [endF, startF];
+
+                        showSelection(startF, endF);
+                        showCalPopup(startF, endF);
+                        selActive = true;
+                    });
+
+                    container.addEventListener("mousemove", (e) => {
+                        if (dragging || selActive) return;
+                        if (e.target.closest(".zone-bar")) showHover(e);
+                        else hideHover();
+                    });
+
+                    container.addEventListener("mouseleave", () => {
+                        if (!dragging && !selActive) hideHover();
+                    });
+
+                    // Dismiss on Escape
+                    document.addEventListener("keydown", (e) => {
+                        if (e.key === "Escape" && selActive)
+                            clearSelection();
+                    });
+
+                    // Dismiss on click outside bars
+                    document.addEventListener("mousedown", (e) => {
+                        if (
+                            selActive &&
+                            !e.target.closest(".zone-bar") &&
+                            !e.target.closest(".cal-popup")
+                        ) {
+                            clearSelection();
+                        }
+                    });
+
+                }
+
+                // ── Live update ───────────────────────────────────────────────────────────
+                function tick() {
+                    document.getElementById("dateStr").textContent =
+                        new Intl.DateTimeFormat("en-US", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                        })
+                            .format(new Date())
+                            .toUpperCase();
+
+                    document
+                        .querySelectorAll("[data-clock-zone]")
+                        .forEach((el) => {
+                            el.textContent = fmtTime(el.dataset.clockZone);
+                        });
+
+                    document
+                        .querySelectorAll("[data-sub-zone]")
+                        .forEach((el) => {
+                            const zone = el.dataset.subZone;
+                            el.textContent = `${fmtDay(zone)} · ${fmtOffset(zone)}`;
+                        });
+
+                    const np = nowPct();
+                    document
+                        .querySelectorAll("[data-now-ind]")
+                        .forEach((el) => {
+                            if (np !== null) {
+                                el.style.left = `${np}%`;
+                                el.style.display = "";
+                            } else {
+                                el.style.display = "none";
+                            }
+                        });
+                }
+
+                // ── Add / remove / set local ──────────────────────────────────────────
+                function setLocalZone(zone) {
+                    localZone = zone;
+                    zones = zones.map((z) => ({
+                        ...z,
+                        isLocal: z.zone === zone,
+                    }));
+                    // Move the new local zone to the top
+                    zones.sort((a, b) =>
+                        a.isLocal ? -1 : b.isLocal ? 1 : 0,
+                    );
+                    saveZones();
+                    buildTicks();
+                    render();
+                }
+
+                function removeZone(zone) {
+                    zones = zones.filter((z) => z.zone !== zone);
+                    saveZones();
+                    render();
+                }
+
+                window.showAdd = function () {
+                    addOpen = true;
+                    selectedZone = null;
+                    const input = document.getElementById("tzInput");
+                    input.value = "";
+                    document.getElementById("addBtn").style.display = "none";
+                    document.getElementById("addPanel").classList.add("open");
+                    input.focus();
+                };
+
+                window.hideAdd = function () {
+                    addOpen = false;
+                    selectedZone = null;
+                    document.getElementById("tzInput").value = "";
+                    document
+                        .getElementById("tzList")
+                        .classList.remove("open");
+                    document.getElementById("addBtn").style.display = "";
+                    document
+                        .getElementById("addPanel")
+                        .classList.remove("open");
+                };
+
+                // ── Combobox for timezone selection ───────────────────────────────────
+                // Build full timezone list from Intl + TZ_LIST labels
+                const ALL_ZONES = (() => {
+                    let ianaZones;
+                    try {
+                        ianaZones = Intl.supportedValuesOf("timeZone");
+                    } catch {
+                        ianaZones = TZ_LIST.map((z) => z.zone);
+                    }
+                    return ianaZones.map((zone) => {
+                        const known = TZ_LIST.find((z) => z.zone === zone);
+                        const city = known
+                            ? known.label
+                            : zone.split("/").pop().replace(/_/g, " ");
+                        const region = zone.split("/")[0];
+                        return { zone, city, region };
+                    });
+                })();
+
+                let selectedZone = null;
+                let activeIdx = -1;
+
+                function renderTzList(filter) {
+                    const list = document.getElementById("tzList");
+                    list.innerHTML = "";
+                    activeIdx = -1;
+
+                    const q = (filter || "").toLowerCase();
+                    const grouped = {};
+                    ALL_ZONES.forEach((tz) => {
+                        if (
+                            q &&
+                            !tz.city.toLowerCase().includes(q) &&
+                            !tz.zone.toLowerCase().includes(q)
+                        )
+                            return;
+                        (grouped[tz.region] ??= []).push(tz);
+                    });
+
+                    const entries = Object.entries(grouped);
+                    if (!entries.length) {
+                        list.innerHTML =
+                            '<div class="tz-combo-empty">No timezones found</div>';
+                        list.classList.add("open");
+                        return;
+                    }
+
+                    for (const [region, tzs] of entries) {
+                        const grp = document.createElement("div");
+                        grp.className = "tz-combo-group";
+                        grp.textContent = region;
+                        list.appendChild(grp);
+                        for (const tz of tzs) {
+                            const item = document.createElement("div");
+                            item.className = "tz-combo-item";
+                            item.dataset.zone = tz.zone;
+                            item.textContent = `${tz.city}  ·  ${tz.zone}`;
+                            item.addEventListener("mousedown", (e) => {
+                                e.preventDefault();
+                                selectTz(tz);
+                            });
+                            list.appendChild(item);
+                        }
+                    }
+                    list.classList.add("open");
+                }
+
+                function selectTz(tz) {
+                    const input = document.getElementById("tzInput");
+                    input.value = `${tz.city}  ·  ${tz.zone}`;
+                    selectedZone = tz.zone;
+                    document
+                        .getElementById("tzList")
+                        .classList.remove("open");
+                }
+
+                function setupCombobox() {
+                    const input = document.getElementById("tzInput");
+                    const list = document.getElementById("tzList");
+
+                    input.addEventListener("focus", () => {
+                        renderTzList(input.value);
+                    });
+
+                    input.addEventListener("input", () => {
+                        selectedZone = null;
+                        renderTzList(input.value);
+                    });
+
+                    input.addEventListener("blur", () => {
+                        // Delay to allow mousedown on items
+                        setTimeout(() => list.classList.remove("open"), 150);
+                    });
+
+                    input.addEventListener("keydown", (e) => {
+                        const items = list.querySelectorAll(".tz-combo-item");
+                        if (!items.length) return;
+
+                        if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            activeIdx = Math.min(
+                                activeIdx + 1,
+                                items.length - 1,
+                            );
+                            items.forEach((el, i) =>
+                                el.classList.toggle("active", i === activeIdx),
+                            );
+                            items[activeIdx]?.scrollIntoView({ block: "nearest" });
+                        } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            activeIdx = Math.max(activeIdx - 1, 0);
+                            items.forEach((el, i) =>
+                                el.classList.toggle("active", i === activeIdx),
+                            );
+                            items[activeIdx]?.scrollIntoView({ block: "nearest" });
+                        } else if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (activeIdx >= 0 && items[activeIdx]) {
+                                const zone = items[activeIdx].dataset.zone;
+                                const tz = ALL_ZONES.find(
+                                    (z) => z.zone === zone,
+                                );
+                                if (tz) selectTz(tz);
+                            }
+                            confirmAdd();
+                        } else if (e.key === "Escape") {
+                            list.classList.remove("open");
+                            input.blur();
+                        }
+                    });
+                }
+
+                window.confirmAdd = function () {
+                    if (!selectedZone) {
+                        // Try to match typed text
+                        const input = document.getElementById("tzInput");
+                        const q = input.value.toLowerCase().trim();
+                        const match = ALL_ZONES.find(
+                            (z) =>
+                                z.zone.toLowerCase() === q ||
+                                z.city.toLowerCase() === q,
+                        );
+                        if (match) selectedZone = match.zone;
+                    }
+                    if (!selectedZone) return;
+                    if (zones.find((z) => z.zone === selectedZone)) {
+                        hideAdd();
+                        return;
+                    }
+                    const label = guessLabel(selectedZone);
+                    zones.push({
+                        label,
+                        zone: selectedZone,
+                        isLocal: false,
+                    });
+                    saveZones();
+                    render();
+                    hideAdd();
+                };
+
+                // ── Filter controls ─────────────────────────────────────────────────────
+                function populateFilters() {
+                    const startSel = document.getElementById("filterStart");
+                    const endSel = document.getElementById("filterEnd");
+                    for (let h = 0; h < 24; h++) {
+                        const opt = document.createElement("option");
+                        opt.value = h;
+                        opt.textContent = fmtHourAmPm(h);
+                        startSel.appendChild(opt);
+                    }
+                    for (let h = 1; h <= 24; h++) {
+                        const opt = document.createElement("option");
+                        opt.value = h;
+                        opt.textContent =
+                            h === 24 ? "12 AM (+1)" : fmtHourAmPm(h);
+                        endSel.appendChild(opt);
+                    }
+                    startSel.value = 0;
+                    endSel.value = 24;
+
+                    function onFilterChange() {
+                        const s = parseInt(startSel.value);
+                        const e = parseInt(endSel.value);
+                        if (e <= s) return; // ignore invalid ranges
+                        filterStart = s;
+                        filterEnd = e;
+                        buildTicks();
+                        render();
+                    }
+
+                    startSel.addEventListener("change", onFilterChange);
+                    endSel.addEventListener("change", onFilterChange);
+                }
+
+                window.resetFilter = function () {
+                    filterStart = 0;
+                    filterEnd = 24;
+                    document.getElementById("filterStart").value = 0;
+                    document.getElementById("filterEnd").value = 24;
+                    buildTicks();
+                    render();
+                };
+
+                // ── Init ─────────────────────────────────────────────────────────────────
+                populateFilters();
+                setupCombobox();
+                buildTicks();
+                buildLegend();
+                render();
+                tick();
+                setInterval(tick, 1000);
+                setInterval(() => {
+                    buildTicks();
+                    render();
+                }, 60000); // refresh gradients
+            })();
+        </script>
+    </body>
+</html>
