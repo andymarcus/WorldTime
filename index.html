@@ -30,6 +30,30 @@
                 --lw: 210px; /* label column width */
             }
 
+            /* Dark theme */
+            [data-theme="dark"] {
+                --bg: oklch(16% 0.01 260);
+                --surface: oklch(22% 0.012 260);
+                --border: oklch(30% 0.012 260);
+                --text: oklch(92% 0.008 75);
+                --muted: oklch(60% 0.008 260);
+                --accent: oklch(72% 0.17 52);
+                --accent-dim: oklch(28% 0.06 52);
+            }
+
+            /* System preference: dark */
+            @media (prefers-color-scheme: dark) {
+                [data-theme="system"] {
+                    --bg: oklch(16% 0.01 260);
+                    --surface: oklch(22% 0.012 260);
+                    --border: oklch(30% 0.012 260);
+                    --text: oklch(92% 0.008 75);
+                    --muted: oklch(60% 0.008 260);
+                    --accent: oklch(72% 0.17 52);
+                    --accent-dim: oklch(28% 0.06 52);
+                }
+            }
+
             body {
                 font-family: "Outfit", sans-serif;
                 background: var(--bg);
@@ -57,13 +81,53 @@
                 font-style: italic;
             }
 
+            .app-header-right {
+                display: flex;
+                align-items: flex-end;
+                gap: 1.2rem;
+                padding-bottom: 0.2rem;
+            }
+
             .app-date {
                 font-size: 0.7rem;
                 font-weight: 400;
                 letter-spacing: 0.12em;
                 text-transform: uppercase;
                 color: var(--muted);
-                padding-bottom: 0.2rem;
+                padding-bottom: 0;
+            }
+
+            /* ─── Theme switcher ─── */
+            .theme-switcher {
+                display: flex;
+                align-items: center;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 2px;
+                gap: 2px;
+            }
+            .theme-btn {
+                font-family: "Outfit", sans-serif;
+                font-size: 0.65rem;
+                font-weight: 500;
+                letter-spacing: 0.03em;
+                padding: 0.25rem 0.55rem;
+                border: none;
+                border-radius: 4px;
+                background: transparent;
+                color: var(--muted);
+                cursor: pointer;
+                transition: color 0.15s, background 0.15s;
+                line-height: 1;
+            }
+            .theme-btn:hover {
+                color: var(--text);
+            }
+            .theme-btn.active {
+                background: var(--bg);
+                color: var(--text);
+                box-shadow: 0 1px 2px oklch(0% 0 0 / 0.08);
             }
 
             /* ─── Gantt wrap ─── */
@@ -529,6 +593,29 @@
                 color: var(--text);
             }
 
+            /* ─── Dark-mode overrides for hard-coded colors ─── */
+            [data-theme="dark"] .zone-bar::before,
+            [data-theme="dark"] .zone-bar::before {
+                background-image: repeating-linear-gradient(
+                    to right,
+                    transparent 0,
+                    transparent calc(100% / var(--rh) - 1px),
+                    oklch(100% 0 0 / 0.1) calc(100% / var(--rh) - 1px),
+                    oklch(100% 0 0 / 0.1) calc(100% / var(--rh))
+                );
+            }
+            @media (prefers-color-scheme: dark) {
+                [data-theme="system"] .zone-bar::before {
+                    background-image: repeating-linear-gradient(
+                        to right,
+                        transparent 0,
+                        transparent calc(100% / var(--rh) - 1px),
+                        oklch(100% 0 0 / 0.1) calc(100% / var(--rh) - 1px),
+                        oklch(100% 0 0 / 0.1) calc(100% / var(--rh))
+                    );
+                }
+            }
+
             /* ─── Selection overlay ─── */
             .selection-overlay {
                 position: absolute;
@@ -626,7 +713,14 @@
     <body>
         <header class="app-header">
             <h1 class="app-title">World <em>Time</em></h1>
-            <span class="app-date" id="dateStr"></span>
+            <div class="app-header-right">
+                <span class="app-date" id="dateStr"></span>
+                <div class="theme-switcher" id="themeSwitcher">
+                    <button class="theme-btn" data-theme-value="system">System</button>
+                    <button class="theme-btn" data-theme-value="light">Light</button>
+                    <button class="theme-btn" data-theme-value="dark">Dark</button>
+                </div>
+            </div>
         </header>
 
         <div class="gantt-wrap">
@@ -695,6 +789,22 @@
 
         <script>
             (() => {
+                // ── Theme switcher ──────────────────────────────────────────────────────
+                const THEME_KEY = "worldtime-theme";
+                function applyTheme(theme) {
+                    document.documentElement.setAttribute("data-theme", theme);
+                    document.querySelectorAll(".theme-btn").forEach((btn) => {
+                        btn.classList.toggle("active", btn.dataset.themeValue === theme);
+                    });
+                    localStorage.setItem(THEME_KEY, theme);
+                }
+                const savedTheme = localStorage.getItem(THEME_KEY) || "system";
+                applyTheme(savedTheme);
+                document.getElementById("themeSwitcher").addEventListener("click", (e) => {
+                    const btn = e.target.closest(".theme-btn");
+                    if (btn) applyTheme(btn.dataset.themeValue);
+                });
+
                 // ── Timezone list ────────────────────────────────────────────────────────
                 const TZ_LIST = [
                     { label: "Honolulu", zone: "Pacific/Honolulu" },
