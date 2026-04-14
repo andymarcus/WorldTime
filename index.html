@@ -294,14 +294,22 @@
                 pointer-events: none;
             }
 
-            /* Now indicator */
-            .now-indicator {
+            /* Now indicator — single line spanning all rows */
+            .global-now-wrap {
                 position: absolute;
-                top: -4px;
-                bottom: -4px;
+                top: 0;
+                bottom: 0;
+                left: var(--lw);
+                right: 0;
+                z-index: 4;
+                pointer-events: none;
+            }
+            .global-now-line {
+                position: absolute;
+                top: 0;
+                bottom: 0;
                 width: 2px;
                 background: var(--accent);
-                z-index: 4;
                 pointer-events: none;
                 transition: left 1s linear;
             }
@@ -1166,18 +1174,7 @@
                     bg.className = "zone-bar-bg";
                     bg.style.background = makeGradient(tz.zone);
 
-                    const indicator = document.createElement("div");
-                    indicator.className = "now-indicator";
-                    indicator.dataset.nowInd = tz.zone;
-                    const np = nowPct();
-                    if (np !== null) {
-                        indicator.style.left = `${np}%`;
-                    } else {
-                        indicator.style.display = "none";
-                    }
-
                     bar.appendChild(bg);
-                    bar.appendChild(indicator);
 
                     barWrap.appendChild(bar);
 
@@ -1206,6 +1203,21 @@
                     const container = document.getElementById("zoneRows");
                     container.innerHTML = "";
                     zones.forEach((tz) => container.appendChild(buildRow(tz)));
+
+                    // Global now-indicator (single line spanning all rows)
+                    const nowWrap = document.createElement("div");
+                    nowWrap.className = "global-now-wrap";
+                    const nowLine = document.createElement("div");
+                    nowLine.className = "global-now-line";
+                    nowLine.id = "globalNowLine";
+                    const np = nowPct();
+                    if (np !== null) {
+                        nowLine.style.left = `${np}%`;
+                    } else {
+                        nowLine.style.display = "none";
+                    }
+                    nowWrap.appendChild(nowLine);
+                    container.appendChild(nowWrap);
 
                     // Shared hover elements
                     const hoverLine = document.createElement("div");
@@ -1461,16 +1473,15 @@
                         });
 
                     const np = nowPct();
-                    document
-                        .querySelectorAll("[data-now-ind]")
-                        .forEach((el) => {
-                            if (np !== null) {
-                                el.style.left = `${np}%`;
-                                el.style.display = "";
-                            } else {
-                                el.style.display = "none";
-                            }
-                        });
+                    const nowEl = document.getElementById("globalNowLine");
+                    if (nowEl) {
+                        if (np !== null) {
+                            nowEl.style.left = `${np}%`;
+                            nowEl.style.display = "";
+                        } else {
+                            nowEl.style.display = "none";
+                        }
+                    }
                 }
 
                 // ── Add / remove / set local ──────────────────────────────────────────
